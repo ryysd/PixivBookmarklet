@@ -81,12 +81,24 @@ class PixivBookmarklet
 
     _downloadIllusts 0
 
+  @downloadIllustsWithProgress: (illusts) ->
+    progress = new LoaderProgressBox()
+    $modal = progress.show()
+
+    cnt = 0
+    onEnd = () -> $modal.modal 'hide'
+    onProgress = (url) -> 
+      progress.setProgress ++cnt, illusts.length
+      onEnd() if cnt >= illusts.length
+
+    PixivBookmarklet.downloadIllusts illusts, progress: onProgress
 
   @downloadBookmarkIllusts: (html, options) ->
     result = PixivParser.parseBookmarkPage html
     illusts = result.illusts
 
-    PixivBookmarklet.downloadIllusts illusts
+    if options? && options.showProgress then PixivBookmarklet.downloadIllustsWithProgress illusts
+    else PixivBookmarklet.downloadIllusts illusts
 
   @downloadMemberIllusts: (html, options) ->
     result = PixivParser.parseMemberIllustPage html
@@ -101,9 +113,9 @@ class PixivBookmarklet
     location.href.indexOf(PixivURL.makeURL 'memberIllust') != -1
 
 class BootProgress
-  constructor: () ->
+  constructor: (options) ->
     @$progress = ($ '<div></div>').attr 'class', 'progress progress-striped active'
-    @$progressBar = ($ '<div></div>').attr class: 'progress-bar progress-bar-success', role: 'progressbar'
+    @$progressBar = ($ '<div></div>').attr class: "progress-bar progress-bar-#{options.type || 'success'}", role: 'progressbar'
     @$progressBar.css 'width', '0%'
     @$text =($ '<span></span>')
 
@@ -112,18 +124,17 @@ class BootProgress
   setText: (text) -> @$text.text text
   setPercentage: (per) -> @$progressBar.css 'width', "#{per}%"
 
-class BootProgressBox
-  constructor: () ->
-    @progress = new BootProgress()
+  appendTo: ($parent) -> $parent.append @$progress
 
-  show: (options) ->
+class BootBox
+  @show: (content, title, options) ->
     $modalBody = ($ '<div></div>').attr 'class', 'modal-body'
-    $modalBody.append @progress.$progress
+    $modalBody.append content 
 
     $modalHeader =
       (($ '<div></div>').attr 'class', 'modal-header')
         .append((($ '<button></button>').attr type: 'button', class: 'close', 'data-dismiss': 'modal').text '×')
-        .append((($ '<h4></h4>').attr 'class', 'modal-title').text(options.title))
+        .append((($ '<h4></h4>').attr 'class', 'modal-title').text title)
 
     $modalFooter = 
       ($ '<div></div').attr('class', 'modal-footer')
@@ -146,9 +157,21 @@ class BootProgressBox
 
      $modal.modal show: true
 
+     $modal
+
+class LoaderProgressBox
+  constructor: () ->
+    @progress = new BootProgress type: 'success'
+
+    @$content = $ '<div></div>'
+    @progress.appendTo @$content
+
   setProgress: (now, max) ->
     @progress.setText "#{now}/#{max} Complete"
     @progress.setPercentage ~~(now * 100 / max)
+
+  show: () ->
+    BootBox.show @$content, 'Now Downloading...'
 
 # load dependent files
 loadDependencies = ->
@@ -171,6 +194,6 @@ $ ->
   loadDependencies()
 
   if PixivBookmarklet.isBookmarkPage()
-    PixivBookmarklet.downloadBookmarkIllusts document
+    PixivBookmarklet.downloadBookmarkIllusts document, showProgress: true
   else if PixivBookmarklet.isMemberIllustPage()
     PixivBookmarklet.downloadMemberIllusts document
