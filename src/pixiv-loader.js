@@ -120,18 +120,23 @@ PixivBookmarklet = (function() {
   };
 
   PixivBookmarklet.downloadIllusts = function(illusts, options) {
-    var urls, _downloadIllusts;
+    var latency, urls, _downloadIllusts;
+    latency = options.latency || 0;
     urls = PixivBookmarklet.makeIllustPageUrlsFromIllusts(illusts);
     _downloadIllusts = function(idx) {
       var next;
       if (idx < urls.length) {
         next = idx + 1;
         return PixivBookmarklet.getImageUrlFromIllustPage(urls[idx], function(url) {
-          _downloadIllusts(next);
+          var _rec;
           PixivBookmarklet.downloadIllust(illusts[idx].title, url.image);
           if ((options != null) && (options.progress != null)) {
-            return options.progress(url, idx);
+            options.progress(url, idx);
           }
+          _rec = function() {
+            return _downloadIllusts(next);
+          };
+          return setTimeout(_rec, latency);
         });
       }
     };
@@ -157,6 +162,8 @@ PixivBookmarklet = (function() {
     });
   };
 
+  PixivBookmarklet.readSequentialPage = function(url, from, to, options) {};
+
   PixivBookmarklet.downloadBookmarkIllusts = function(html, options) {
     var illusts, result;
     result = PixivParser.parseBookmarkPage(html);
@@ -172,7 +179,11 @@ PixivBookmarklet = (function() {
     var illusts, result;
     result = PixivParser.parseMemberIllustPage(html);
     illusts = result.illusts;
-    return PixivBookmarklet.downloadIllusts(illusts);
+    if ((options != null) && options.showProgress) {
+      return PixivBookmarklet.downloadIllustsWithProgress(illusts);
+    } else {
+      return PixivBookmarklet.downloadIllusts(illusts);
+    }
   };
 
   PixivBookmarklet.isBookmarkPage = function() {
@@ -311,6 +322,8 @@ $(function() {
       showProgress: true
     });
   } else if (PixivBookmarklet.isMemberIllustPage()) {
-    return PixivBookmarklet.downloadMemberIllusts(document);
+    return PixivBookmarklet.downloadMemberIllusts(document, {
+      showProgress: true
+    });
   }
 });

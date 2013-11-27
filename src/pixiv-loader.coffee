@@ -68,16 +68,20 @@ class PixivBookmarklet
   @makeIllustPageUrlsFromIllusts = (illusts) -> (PixivBookmarklet.makeIllustPageUrlFromId illust.id for illust in illusts)
 
   @downloadIllusts: (illusts, options) ->
+    latency = options.latency || 0
+
     urls = PixivBookmarklet.makeIllustPageUrlsFromIllusts illusts 
 
     _downloadIllusts = (idx) ->
       if idx < urls.length 
         next = idx + 1
         PixivBookmarklet.getImageUrlFromIllustPage urls[idx], (url) ->
-          _downloadIllusts next
-
           PixivBookmarklet.downloadIllust illusts[idx].title, url.image
           options.progress url, idx if options? && options.progress? 
+
+          # insert latency for server load reduction
+          _rec = () -> _downloadIllusts next
+          setTimeout _rec, latency
 
     _downloadIllusts 0
 
@@ -93,6 +97,8 @@ class PixivBookmarklet
 
     PixivBookmarklet.downloadIllusts illusts, progress: onProgress
 
+  @readSequentialPage: (url, from, to, options) ->
+
   @downloadBookmarkIllusts: (html, options) ->
     result = PixivParser.parseBookmarkPage html
     illusts = result.illusts
@@ -104,7 +110,8 @@ class PixivBookmarklet
     result = PixivParser.parseMemberIllustPage html
     illusts = result.illusts
 
-    PixivBookmarklet.downloadIllusts illusts
+    if options? && options.showProgress then PixivBookmarklet.downloadIllustsWithProgress illusts
+    else PixivBookmarklet.downloadIllusts illusts
 
   @isBookmarkPage: () ->
     location.href.indexOf(PixivURL.makeURL 'bookmark') != -1
@@ -196,4 +203,4 @@ $ ->
   if PixivBookmarklet.isBookmarkPage()
     PixivBookmarklet.downloadBookmarkIllusts document, showProgress: true
   else if PixivBookmarklet.isMemberIllustPage()
-    PixivBookmarklet.downloadMemberIllusts document
+    PixivBookmarklet.downloadMemberIllusts document, showProgress: true
