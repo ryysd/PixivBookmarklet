@@ -1,3 +1,9 @@
+# extract number from string
+extractNum = (str) ->
+  num = (new String str).match /\d/g;
+  num.join('');
+
+# debug 
 class Debug
   @print: (html) -> ($ 'html').html html
 
@@ -10,38 +16,6 @@ class PixivURL
 
   @makeURL : (action) -> "#{@host}/#{@actions[action]}"
 
-###
-class PixivReader
-  constructor: (@id, @pass) ->
-
-  get: (action, data, callback) ->
-    jqxhr = $.get (PixivURL.makeURL action), data, () -> (callback jqxhr)
-
-  post: (action, data, callback) ->
-    jqxhr = $.post (PixivURL.makeURL action), data, () -> (callback jqxhr)
-
-  login: (callback) ->
-    @post 'login', {pixiv_id: @id, pass: @pass, mode: 'login', 'skip': '0'}, callback
-
-  getBookmarkPage: (callback, options) ->
-    data = {}
-
-    if options?
-      data.rest = if options.hidden? then 'hide' else 'show'
-      data.p = options.page if options.page?
-
-    @post 'bookmark', data, callback
-
-  getIllustPage: (id, callback) ->
-    $.ajax({
-      type : 'GET'
-      url : PixivURL.makeURL 'memberIllust'
-      data : {mode: 'big', illust_id: id}
-      beforeSend : (jqxhr)  -> jqxhr.setRequestHeader 'Referer', PixivURL.host
-      complete : callback 
-    })
-###
-
 class PixivParser
   @parseBookmarkPage: (html) ->
     $page = $ html
@@ -52,11 +26,11 @@ class PixivParser
     $next = $page.find '.sprites-next-linked'
     $prev = $page.find '.sprites-prev-linked'
 
-    count = parseInt $count.text()
+    count = extractNum $count.text()
 
     illusts = ({
-      id: ((($ illust).attr 'id').replace 'li_', ''), 
-      title: (($ illust).find '.work').text() ,
+      id: extractNum ((($ illust).find '.work').attr 'href')
+      title: (($ illust).find '.work').text() 
       tags: (($ illust).find 'img').attr 'data-tags'
     } for illust in $illusts when (($ illust).find 'img').length)
 
@@ -67,36 +41,136 @@ class PixivParser
       hasPrev: $prev.length != 0
     }
 
-class PixivAPI
-  constructor: (id, pass) ->
-    @reader = new PixivReader(id, pass)
+  @parseMemberIllustPage: (html) ->
+    PixivParser.parseBookmarkPage html
 
-  login: (callback) ->
-    @reader.login(callback)
+  @parseIllustPage: (html) ->
+    $page = $ html
 
-  getBookmarkIllusts: (hidden, callback) ->
+    $image = (($page.find '.works_display').find 'img')
+    url = ($image.attr 'src').replace '_m', ''
+
+    {image: url}
 
 class PixivBookmarklet
   constructor: () ->
+
+  @downloadIllust = (title, url) ->
+    ext = (url.split '.').pop()
+
+    title = title + ".#{ext}"
+    downloadFile url, title
+
+  @getImageUrlFromIllustPage = (url, callback) ->
+    $.get url, null, (data) -> callback(PixivParser.parseIllustPage data)
+
+  @makeIllustPageUrlFromId = (id) -> (PixivURL.makeURL 'memberIllust') + '?mode=medium&illust_id=' + id
+  @makeIllustPageUrlsFromIllusts = (illusts) -> (PixivBookmarklet.makeIllustPageUrlFromId illust.id for illust in illusts)
+
+  @downloadIllusts: (illusts, options) ->
+    urls = PixivBookmarklet.makeIllustPageUrlsFromIllusts illusts 
+
+    _downloadIllusts = (idx) ->
+      if idx < urls.length 
+        next = idx + 1
+        PixivBookmarklet.getImageUrlFromIllustPage urls[idx], (url) ->
+          _downloadIllusts next
+
+          PixivBookmarklet.downloadIllust illusts[idx].title, url.image
+          options.progress url, idx if options? && options.progress? 
+
+    _downloadIllusts 0
+
+
+  @downloadBookmarkIllusts: (html, options) ->
+    result = PixivParser.parseBookmarkPage html
+    illusts = result.illusts
+
+    PixivBookmarklet.downloadIllusts illusts
+
+  @downloadMemberIllusts: (html, options) ->
+    result = PixivParser.parseMemberIllustPage html
+    illusts = result.illusts
+
+    PixivBookmarklet.downloadIllusts illusts
 
   @isBookmarkPage: () ->
     location.href.indexOf(PixivURL.makeURL 'bookmark') != -1
 
   @isMemberIllustPage: () ->
-    location.href.indexOf(PixivURL.makeURL 'bookmark') != -1
+    location.href.indexOf(PixivURL.makeURL 'memberIllust') != -1
+
+class BootProgress
+  constructor: () ->
+    @$progress = ($ '<div></div>').attr 'class', 'progress progress-striped active'
+    @$progressBar = ($ '<div></div>').attr class: 'progress-bar progress-bar-success', role: 'progressbar'
+    @$progressBar.css 'width', '0%'
+    @$text =($ '<span></span>')
+
+    @$progress.append (@$progressBar.append @$text)
+
+  setText: (text) -> @$text.text text
+  setPercentage: (per) -> @$progressBar.css 'width', "#{per}%"
+
+class BootProgressBox
+  constructor: () ->
+    @progress = new BootProgress()
+
+  show: (options) ->
+    $modalBody = ($ '<div></div>').attr 'class', 'modal-body'
+    $modalBody.append @progress.$progress
+
+    $modalHeader =
+      (($ '<div></div>').attr 'class', 'modal-header')
+        .append((($ '<button></button>').attr type: 'button', class: 'close', 'data-dismiss': 'modal').text '×')
+        .append((($ '<h4></h4>').attr 'class', 'modal-title').text(options.title))
+
+    $modalFooter = 
+      ($ '<div></div').attr('class', 'modal-footer')
+        .append '<button data-bb-handler="cancel" type="button" class="btn btn-danger">cancel</button>'
+
+    $modal =
+      ($ '<div></div>').attr class: 'modal fade', tabIndex: '-1', role: 'dialog'
+
+     $modalDialog = $('<div></div>').attr('class', 'modal-dialog')
+     $modalContent = $('<div></div>').attr('class', 'modal-content')
+
+     $modalContent.append $modalHeader
+     $modalContent.append $modalBody
+     $modalContent.append $modalFooter
+
+     $modalDialog.append $modalContent
+     $modal.append $modalDialog
+
+     $modal.on 'hidden.bs.modal', () =>  $modal.remove()
+
+     $modal.modal show: true
+
+  setProgress: (now, max) ->
+    @progress.setText "#{now}/#{max} Complete"
+    @progress.setPercentage ~~(now * 100 / max)
+
+# load dependent files
+loadDependencies = ->
+  _loadScript = (url) ->
+    s = $ '<script></script>'
+    s.attr charset: 'UTF-8', type: 'text/javascript', src: url
+    ($ 'head').append s
+
+  _loadCSS = (url) ->
+    s = $ '<link></link>'
+    s.attr rel: 'stylesheet', type: 'text/css', href: url
+    ($ 'head').append s
+
+  _loadScript 'http://localhost/PixivWebPageParser/src/download.js'
+  _loadScript 'http://localhost/PixivWebPageParser/src/bootstrap.min.js'
+  _loadScript 'http://localhost/PixivWebPageParser/src/bootbox.min.js'
+  _loadCSS 'http://localhost/PixivWebPageParser/css/bootstrap.min.css'
 
 $ ->
+  loadDependencies()
+
   if PixivBookmarklet.isBookmarkPage()
-    illusts = PixivParser.parseBookmarkPage document
-    console.log illusts
-
-test = (id, pass) ->
-  reader = new PixivReader(id, pass)
-
-  reader.login((jq) -> 
-    bookmark = reader.getIllustPage('39909714', (jqxhr) ->
-      Debug.print jqxhr.responseText
-      # data = PixivParser.parseBookmarkPage(jqxhr.responseText)
-    )
-  )
-
+    PixivBookmarklet.downloadBookmarkIllusts document
+  else if PixivBookmarklet.isMemberIllustPage()
+    PixivBookmarklet.downloadMemberIllusts document
