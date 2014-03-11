@@ -89,6 +89,18 @@ PixivParser = (function() {
     };
   };
 
+  PixivParser.parseMangaPage = function(html) {
+    var $items, $page, images, item, _i, _len, _results;
+    $page = $(html);
+    $items = $page.find('.item-container');
+    _results = [];
+    for (_i = 0, _len = $items.length; _i < _len; _i++) {
+      item = $items[_i];
+      _results.push(images = ((($(item)).find('img')).attr('data-src')).replace(/p([0-9]+)/, 'big_p$1'));
+    }
+    return _results;
+  };
+
   return PixivParser;
 
 })();
@@ -96,18 +108,26 @@ PixivParser = (function() {
 PixivBookmarklet = (function() {
   function PixivBookmarklet() {}
 
-  PixivBookmarklet.downloadIllust = function(title, url) {
-    var ext;
+  PixivBookmarklet.downloadIllust = function(illust, url) {
+    var ext, title;
+    title = illust.title;
     ext = (url.split('.')).pop();
     title = title + ("." + ext);
     return downloadFile(url, title);
   };
 
-  PixivBookmarklet.downloadManga = function(title, url) {
-    return console.log('can not download manga.');
+  PixivBookmarklet.downloadManga = function(illust, url) {
+    return $.get(PixivBookmarklet.makeMangaPageUrlFromId(illust.id), null, function(data) {
+      var images, img, _i, _len, _results;
+      images = PixivParser.parseMangaPage(data);
+      _results = [];
+      for (_i = 0, _len = images.length; _i < _len; _i++) {
+        img = images[_i];
+        _results.push(PixivBookmarklet.downloadIllust(illust, img));
+      }
+      return _results;
+    });
   };
-
-  PixivBookmarklet.downloadComic = function() {};
 
   PixivBookmarklet.getImageUrlFromIllustPage = function(url, callback) {
     return $.get(url, null, function(data) {
@@ -117,6 +137,10 @@ PixivBookmarklet = (function() {
 
   PixivBookmarklet.makeIllustPageUrlFromId = function(id) {
     return (PixivURL.makeURL('memberIllust')) + '?mode=medium&illust_id=' + id;
+  };
+
+  PixivBookmarklet.makeMangaPageUrlFromId = function(id) {
+    return (PixivURL.makeURL('memberIllust')) + '?mode=manga&illust_id=' + id;
   };
 
   PixivBookmarklet.makeIllustPageUrlsFromIllusts = function(illusts) {
@@ -142,7 +166,7 @@ PixivBookmarklet = (function() {
         return PixivBookmarklet.getImageUrlFromIllustPage(urls[idx], function(url) {
           var dl, _rec;
           dl = url.mode === 'manga' ? PixivBookmarklet.downloadManga : PixivBookmarklet.downloadIllust;
-          dl(illusts[idx].title, url.image);
+          dl(illusts[idx], url.image);
           if ((options != null) && (options.progress != null)) {
             options.progress(url, idx);
           }

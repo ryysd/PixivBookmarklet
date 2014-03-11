@@ -54,24 +54,33 @@ class PixivParser
 
     {image: url, mode: mode}
 
+  @parseMangaPage: (html) ->
+    $page = $ html
+
+    $items = $page.find '.item-container'
+    images = ((($ item).find 'img').attr 'data-src').replace /p([0-9]+)/, 'big_p$1' for item in $items
+
 class PixivBookmarklet
   constructor: () ->
 
-  @downloadIllust = (title, url) ->
+  @downloadIllust = (illust, url) ->
+    title = illust.title
     ext = (url.split '.').pop()
 
     title = title + ".#{ext}"
     downloadFile url, title
 
-  @downloadManga: (title, url) ->
-    console.log 'can not download manga.'
-
-  @downloadComic = () ->
+  @downloadManga: (illust, url) ->
+    $.get (PixivBookmarklet.makeMangaPageUrlFromId illust.id), null, (data) -> 
+      images = PixivParser.parseMangaPage(data)
+      for img in images
+        PixivBookmarklet.downloadIllust illust, img
 
   @getImageUrlFromIllustPage = (url, callback) ->
     $.get url, null, (data) -> callback(PixivParser.parseIllustPage data)
 
   @makeIllustPageUrlFromId = (id) -> (PixivURL.makeURL 'memberIllust') + '?mode=medium&illust_id=' + id
+  @makeMangaPageUrlFromId = (id) -> (PixivURL.makeURL 'memberIllust') + '?mode=manga&illust_id=' + id
   @makeIllustPageUrlsFromIllusts = (illusts) -> (PixivBookmarklet.makeIllustPageUrlFromId illust.id for illust in illusts when illust.id?)
 
   @downloadIllusts: (illusts, options) ->
@@ -85,7 +94,7 @@ class PixivBookmarklet
         PixivBookmarklet.getImageUrlFromIllustPage urls[idx], (url) ->
           dl = if url.mode == 'manga' then PixivBookmarklet.downloadManga else PixivBookmarklet.downloadIllust
 
-          dl illusts[idx].title, url.image
+          dl illusts[idx], url.image
           options.progress url, idx if options? && options.progress? 
 
           # insert latency for server load reduction
