@@ -4,7 +4,9 @@ var BootBox, BootProgress, Debug, LoaderProgressBox, PixivBookmarklet, PixivPars
 extractNum = function(str) {
   var num;
   num = (new String(str)).match(/\d/g);
-  return num.join('');
+  if (num != null) {
+    return num.join('');
+  }
 };
 
 Debug = (function() {
@@ -76,12 +78,14 @@ PixivParser = (function() {
   };
 
   PixivParser.parseIllustPage = function(html) {
-    var $image, $page, url;
+    var $image, $page, mode, url;
     $page = $(html);
     $image = ($page.find('.works_display')).find('img');
+    mode = (($image.parent().attr('href')).match(/mode=([^&]*)/))[1];
     url = ($image.attr('src')).replace('_m', '');
     return {
-      image: url
+      image: url,
+      mode: mode
     };
   };
 
@@ -99,6 +103,12 @@ PixivBookmarklet = (function() {
     return downloadFile(url, title);
   };
 
+  PixivBookmarklet.downloadManga = function(title, url) {
+    return console.log('can not download manga.');
+  };
+
+  PixivBookmarklet.downloadComic = function() {};
+
   PixivBookmarklet.getImageUrlFromIllustPage = function(url, callback) {
     return $.get(url, null, function(data) {
       return callback(PixivParser.parseIllustPage(data));
@@ -114,22 +124,25 @@ PixivBookmarklet = (function() {
     _results = [];
     for (_i = 0, _len = illusts.length; _i < _len; _i++) {
       illust = illusts[_i];
-      _results.push(PixivBookmarklet.makeIllustPageUrlFromId(illust.id));
+      if (illust.id != null) {
+        _results.push(PixivBookmarklet.makeIllustPageUrlFromId(illust.id));
+      }
     }
     return _results;
   };
 
   PixivBookmarklet.downloadIllusts = function(illusts, options) {
     var latency, urls, _downloadIllusts;
-    latency = options.latency || 0;
+    latency = (options != null) && (options.latency != null) ? options.latency : 0;
     urls = PixivBookmarklet.makeIllustPageUrlsFromIllusts(illusts);
     _downloadIllusts = function(idx) {
       var next;
       if (idx < urls.length) {
         next = idx + 1;
         return PixivBookmarklet.getImageUrlFromIllustPage(urls[idx], function(url) {
-          var _rec;
-          PixivBookmarklet.downloadIllust(illusts[idx].title, url.image);
+          var dl, _rec;
+          dl = url.mode === 'manga' ? PixivBookmarklet.downloadManga : PixivBookmarklet.downloadIllust;
+          dl(illusts[idx].title, url.image);
           if ((options != null) && (options.progress != null)) {
             options.progress(url, idx);
           }
@@ -267,11 +280,16 @@ BootBox = (function() {
 
 LoaderProgressBox = (function() {
   function LoaderProgressBox() {
+    var $label;
     this.progress = new BootProgress({
       type: 'success'
     });
     this.$content = $('<div></div>');
-    this.progress.appendTo(this.$content);
+    $label = ($('<span></span>')).attr('class', 'col-md-3');
+    $label = 'progress';
+    this.progress.$progress.attr('class', 'col-md-9');
+    this.$content.append($label);
+    this.$content.append(this.progress.$progress);
   }
 
   LoaderProgressBox.prototype.setProgress = function(now, max) {
@@ -309,21 +327,18 @@ loadDependencies = function() {
     });
     return ($('head')).append(s);
   };
-  _loadScript('http://localhost/PixivWebPageParser/src/download.js');
-  _loadScript('http://localhost/PixivWebPageParser/src/bootstrap.min.js');
-  _loadScript('http://localhost/PixivWebPageParser/src/bootbox.min.js');
-  return _loadCSS('http://localhost/PixivWebPageParser/css/bootstrap.min.css');
+  return _loadScript('http://localhost/PixivWebPageParser/src/download.js');
 };
 
 $(function() {
   loadDependencies();
   if (PixivBookmarklet.isBookmarkPage()) {
     return PixivBookmarklet.downloadBookmarkIllusts(document, {
-      showProgress: true
+      showProgress: false
     });
   } else if (PixivBookmarklet.isMemberIllustPage()) {
     return PixivBookmarklet.downloadMemberIllusts(document, {
-      showProgress: true
+      showProgress: false
     });
   }
 });

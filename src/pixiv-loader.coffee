@@ -1,7 +1,7 @@
 # extract number from string
 extractNum = (str) ->
-  num = (new String str).match /\d/g;
-  num.join('');
+  num = (new String str).match /\d/g
+  num.join('') if num?
 
 # debug 
 class Debug
@@ -48,9 +48,11 @@ class PixivParser
     $page = $ html
 
     $image = (($page.find '.works_display').find 'img')
+    mode = (($image.parent().attr 'href').match /mode=([^&]*)/)[1]
+
     url = ($image.attr 'src').replace '_m', ''
 
-    {image: url}
+    {image: url, mode: mode}
 
 class PixivBookmarklet
   constructor: () ->
@@ -61,14 +63,19 @@ class PixivBookmarklet
     title = title + ".#{ext}"
     downloadFile url, title
 
+  @downloadManga: (title, url) ->
+    console.log 'can not download manga.'
+
+  @downloadComic = () ->
+
   @getImageUrlFromIllustPage = (url, callback) ->
     $.get url, null, (data) -> callback(PixivParser.parseIllustPage data)
 
   @makeIllustPageUrlFromId = (id) -> (PixivURL.makeURL 'memberIllust') + '?mode=medium&illust_id=' + id
-  @makeIllustPageUrlsFromIllusts = (illusts) -> (PixivBookmarklet.makeIllustPageUrlFromId illust.id for illust in illusts)
+  @makeIllustPageUrlsFromIllusts = (illusts) -> (PixivBookmarklet.makeIllustPageUrlFromId illust.id for illust in illusts when illust.id?)
 
   @downloadIllusts: (illusts, options) ->
-    latency = options.latency || 0
+    latency = if options? && options.latency? then options.latency else 0 
 
     urls = PixivBookmarklet.makeIllustPageUrlsFromIllusts illusts 
 
@@ -76,7 +83,9 @@ class PixivBookmarklet
       if idx < urls.length 
         next = idx + 1
         PixivBookmarklet.getImageUrlFromIllustPage urls[idx], (url) ->
-          PixivBookmarklet.downloadIllust illusts[idx].title, url.image
+          dl = if url.mode == 'manga' then PixivBookmarklet.downloadManga else PixivBookmarklet.downloadIllust
+
+          dl illusts[idx].title, url.image
           options.progress url, idx if options? && options.progress? 
 
           # insert latency for server load reduction
@@ -171,7 +180,14 @@ class LoaderProgressBox
     @progress = new BootProgress type: 'success'
 
     @$content = $ '<div></div>'
-    @progress.appendTo @$content
+
+    $label = ($ '<span></span>').attr 'class', 'col-md-3'
+    $label = 'progress'
+
+    @progress.$progress.attr 'class', 'col-md-9'
+
+    @$content.append $label
+    @$content.append @progress.$progress 
 
   setProgress: (now, max) ->
     @progress.setText "#{now}/#{max} Complete"
@@ -193,14 +209,14 @@ loadDependencies = ->
     ($ 'head').append s
 
   _loadScript 'http://localhost/PixivWebPageParser/src/download.js'
-  _loadScript 'http://localhost/PixivWebPageParser/src/bootstrap.min.js'
-  _loadScript 'http://localhost/PixivWebPageParser/src/bootbox.min.js'
-  _loadCSS 'http://localhost/PixivWebPageParser/css/bootstrap.min.css'
+  #_loadScript 'http://localhost/PixivWebPageParser/src/bootstrap.min.js'
+  #_loadScript 'http://localhost/PixivWebPageParser/src/bootbox.min.js'
+  #_loadCSS 'http://localhost/PixivWebPageParser/css/bootstrap.min.css'
 
 $ ->
   loadDependencies()
 
   if PixivBookmarklet.isBookmarkPage()
-    PixivBookmarklet.downloadBookmarkIllusts document, showProgress: true
+    PixivBookmarklet.downloadBookmarkIllusts document, showProgress: false
   else if PixivBookmarklet.isMemberIllustPage()
-    PixivBookmarklet.downloadMemberIllusts document, showProgress: true
+    PixivBookmarklet.downloadMemberIllusts document, showProgress: false
