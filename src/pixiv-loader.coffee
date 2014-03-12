@@ -26,6 +26,8 @@ class PixivParser
     $next = $page.find '.sprites-next-linked'
     $prev = $page.find '.sprites-prev-linked'
 
+    $current = $((($page.find '.page-list').children ' .current')[0])
+
     count = extractNum $count.text()
 
     illusts = ({
@@ -37,6 +39,7 @@ class PixivParser
     {
       count: count, 
       illusts: illusts, 
+      current: (parseInt $current.text()),
       hasNext: $next.length != 0, 
       hasPrev: $prev.length != 0
     }
@@ -117,6 +120,20 @@ class PixivBookmarklet
 
   @readSequentialPage: (url, from, to, options) ->
 
+  @downloadAllBookmarkIllusts: (html, options) ->
+    done = []
+
+    _downloadAllBookmarkIllusts = (_html) ->
+      result = PixivBookmarklet.downloadBookmarkIllusts _html, options
+      done[result.current] = true
+
+      if result.hasNext && !done[result.current + 1]
+        $.get location.href + "&p=#{result.current + 1}", null, (data) -> _downloadAllBookmarkIllusts data
+      if result.hasPrev && !done[result.current - 1]
+        $.get location.href + "&p=#{result.current - 1}", null, (data) -> _downloadAllBookmarkIllusts data
+
+    _downloadAllBookmarkIllusts html
+
   @downloadBookmarkIllusts: (html, options) ->
     result = PixivParser.parseBookmarkPage html
     illusts = result.illusts
@@ -124,12 +141,10 @@ class PixivBookmarklet
     if options? && options.showProgress then PixivBookmarklet.downloadIllustsWithProgress illusts
     else PixivBookmarklet.downloadIllusts illusts
 
-  @downloadMemberIllusts: (html, options) ->
-    result = PixivParser.parseMemberIllustPage html
-    illusts = result.illusts
+    result
 
-    if options? && options.showProgress then PixivBookmarklet.downloadIllustsWithProgress illusts
-    else PixivBookmarklet.downloadIllusts illusts
+  @downloadMemberIllusts: (html, options) ->
+    PixivBookmarklet.downloadBookmarkIllusts html, options
 
   @isBookmarkPage: () ->
     location.href.indexOf(PixivURL.makeURL 'bookmark') != -1
@@ -218,14 +233,32 @@ loadDependencies = ->
     ($ 'head').append s
 
   _loadScript 'http://localhost/PixivWebPageParser/src/download.js'
+  _loadCSS 'http://localhost/PixivWebPageParser/css/btn-design.css'
   #_loadScript 'http://localhost/PixivWebPageParser/src/bootstrap.min.js'
   #_loadScript 'http://localhost/PixivWebPageParser/src/bootbox.min.js'
   #_loadCSS 'http://localhost/PixivWebPageParser/css/bootstrap.min.css'
 
+insertButton = ->
+  $target = $ '.column-menu'
+  $ul = ($ '<ul></ul>').attr 'class', 'menu-items'
+  $li = ($ '<li></li>')
+  $dlBtn = (($ '<div></div>').attr 'class', 'btn btn-success').text('このページをダウンロード')
+  $alldlBtn = (($ '<div></div>').attr 'class', 'btn btn-primary').text('全てダウンロード')
+
+  $dlBtn.click () -> PixivBookmarklet.downloadBookmarkIllusts document, showProgress:false
+  $alldlBtn.click () -> PixivBookmarklet.downloadAllBookmarkIllusts document, showProgress: false
+
+  $li.append $dlBtn
+  $li.append $alldlBtn
+  $ul.append $li
+  $target.append $ul
+
 $ ->
   loadDependencies()
 
-  if PixivBookmarklet.isBookmarkPage()
-    PixivBookmarklet.downloadBookmarkIllusts document, showProgress: false
-  else if PixivBookmarklet.isMemberIllustPage()
-    PixivBookmarklet.downloadMemberIllusts document, showProgress: false
+  insertButton()
+
+  #if PixivBookmarklet.isBookmarkPage()
+  #  PixivBookmarklet.downloadBookmarkIllusts document, showProgress: false
+  #else if PixivBookmarklet.isMemberIllustPage()
+  #  PixivBookmarklet.downloadMemberIllusts document, showProgress: false
