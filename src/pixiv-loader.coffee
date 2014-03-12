@@ -246,14 +246,16 @@ insertButton = ->
   $target = $ '.column-menu'
   $ul = ($ '<ul></ul>').attr 'class', 'menu-items'
   $li = ($ '<li></li>')
+  $div = ($ '<div></div').css('display', 'inline-block')
   $dlBtn = (($ '<div></div>').attr 'class', 'btn btn-success').text('このページをダウンロード')
   $alldlBtn = (($ '<div></div>').attr 'class', 'btn btn-primary').text('全てダウンロード')
 
   $dlBtn.click () -> PixivBookmarklet.downloadBookmarkIllusts document, showProgress:false
   $alldlBtn.click () -> PixivBookmarklet.downloadAllBookmarkIllusts document, showProgress: false
 
-  $li.append $dlBtn
-  $li.append $alldlBtn
+  $div.append $dlBtn
+  $div.append $alldlBtn
+  $li.append $div
   $ul.append $li
   $target.append $ul
 

@@ -377,10 +377,11 @@ loadDependencies = function() {
 };
 
 insertButton = function() {
-  var $alldlBtn, $dlBtn, $li, $target, $ul;
+  var $alldlBtn, $div, $dlBtn, $li, $target, $ul;
   $target = $('.column-menu');
   $ul = ($('<ul></ul>')).attr('class', 'menu-items');
   $li = $('<li></li>');
+  $div = ($('<div></div')).css('display', 'inline-block');
   $dlBtn = (($('<div></div>')).attr('class', 'btn btn-success')).text('このページをダウンロード');
   $alldlBtn = (($('<div></div>')).attr('class', 'btn btn-primary')).text('全てダウンロード');
   $dlBtn.click(function() {
@@ -393,8 +394,9 @@ insertButton = function() {
       showProgress: false
     });
   });
-  $li.append($dlBtn);
-  $li.append($alldlBtn);
+  $div.append($dlBtn);
+  $div.append($alldlBtn);
+  $li.append($div);
   $ul.append($li);
   return $target.append($ul);
 };
