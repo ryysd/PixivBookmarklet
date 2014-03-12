@@ -60,7 +60,8 @@ PixivParser = (function() {
           _results.push({
             id: extractNum((($(illust)).find('.work')).attr('href')),
             title: (($(illust)).find('.work')).text(),
-            tags: (($(illust)).find('img')).attr('data-tags')
+            tags: (($(illust)).find('img')).attr('data-tags'),
+            author: ''
           });
         }
       }
@@ -80,13 +81,15 @@ PixivParser = (function() {
   };
 
   PixivParser.parseIllustPage = function(html) {
-    var $image, $page, mode, url;
+    var $image, $page, author, mode, url;
     $page = $(html);
     $image = ($page.find('.works_display')).find('img');
     mode = (($image.parent().attr('href')).match(/mode=([^&]*)/))[1];
+    author = ($page.find('.user')).text();
     url = ($image.attr('src')).replace('_m', '');
     return {
       image: url,
+      author: author,
       mode: mode
     };
   };
@@ -112,9 +115,8 @@ PixivBookmarklet = (function() {
 
   PixivBookmarklet.downloadIllust = function(illust, url) {
     var ext, title;
-    title = illust.title;
     ext = (url.split('.')).pop();
-    title = title + ("." + ext);
+    title = "" + illust.author + "_" + illust.title + "(" + illust.id + ")." + ext;
     return downloadFile(url, title);
   };
 
@@ -166,9 +168,11 @@ PixivBookmarklet = (function() {
       if (idx < urls.length) {
         next = idx + 1;
         return PixivBookmarklet.getImageUrlFromIllustPage(urls[idx], function(url) {
-          var dl, _rec;
+          var dl, illust, _rec;
           dl = url.mode === 'manga' ? PixivBookmarklet.downloadManga : PixivBookmarklet.downloadIllust;
-          dl(illusts[idx], url.image);
+          illust = illusts[idx];
+          illust.author = url.author;
+          dl(illust, url.image);
           if ((options != null) && (options.progress != null)) {
             options.progress(url, idx);
           }

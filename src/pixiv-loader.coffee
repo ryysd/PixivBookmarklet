@@ -34,6 +34,7 @@ class PixivParser
       id: extractNum ((($ illust).find '.work').attr 'href')
       title: (($ illust).find '.work').text() 
       tags: (($ illust).find 'img').attr 'data-tags'
+      author: ''
     } for illust in $illusts when (($ illust).find 'img').length)
 
     {
@@ -52,10 +53,11 @@ class PixivParser
 
     $image = (($page.find '.works_display').find 'img')
     mode = (($image.parent().attr 'href').match /mode=([^&]*)/)[1]
+    author = ($page.find '.user').text()
 
     url = ($image.attr 'src').replace '_m', ''
 
-    {image: url, mode: mode}
+    {image: url, author: author, mode: mode}
 
   @parseMangaPage: (html) ->
     $page = $ html
@@ -67,10 +69,9 @@ class PixivBookmarklet
   constructor: () ->
 
   @downloadIllust = (illust, url) ->
-    title = illust.title
     ext = (url.split '.').pop()
 
-    title = title + ".#{ext}"
+    title = "#{illust.author}_#{illust.title}(#{illust.id}).#{ext}"
     downloadFile url, title
 
   @downloadManga: (illust, url) ->
@@ -97,7 +98,10 @@ class PixivBookmarklet
         PixivBookmarklet.getImageUrlFromIllustPage urls[idx], (url) ->
           dl = if url.mode == 'manga' then PixivBookmarklet.downloadManga else PixivBookmarklet.downloadIllust
 
-          dl illusts[idx], url.image
+          illust = illusts[idx]
+          illust.author = url.author
+
+          dl illust, url.image
           options.progress url, idx if options? && options.progress? 
 
           # insert latency for server load reduction
