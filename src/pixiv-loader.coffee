@@ -257,10 +257,14 @@ insertButton = ->
   $ul.append $li
   $target.append $ul
 
-$ ->
-  loadDependencies()
+isTargetPage = ->
+  location.href.match(/http:\/\/www.pixiv.net\/bookmark.php(\?id=[0-9]+)?$/)? ||
+  location.href.match(/http:\/\/www.pixiv.net\/member_illust.php(\?id=[0-9]+)?$/)?
 
-  insertButton()
+$ ->
+  # loadDependencies()
+
+  insertButton() if isTargetPage() 
 
   #if PixivBookmarklet.isBookmarkPage()
   #  PixivBookmarklet.downloadBookmarkIllusts document, showProgress: false
